@@ -12,8 +12,8 @@
     "start": "node dist/index.js",
     "dev": "tsc --watch",
     "test": "node test.js",
-    "test:unit": "node --test --test-force-exit __tests__/*.test.ts",
-    "test:all": "npm run test:unit && npm test"
+    "test:unit": "tsx --test __tests__/*.test.ts",
+    "test:all": "npm run test:unit && npm run test"
   },
   "keywords": [
     "minecraft",
@@ -35,6 +35,7 @@
   },
   "devDependencies": {
     "@types/node": "^20.19.43",
+    "tsx": "^4.23.12",
     "typescript": "^5.0.0"
   }
 }
