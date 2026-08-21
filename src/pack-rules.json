@@ -1,5 +1,5 @@
 {
-  "version": "1.0.0",
+  "version": "1.1.0",
   "rules": {
     "incompatible_pairs": [
       { "mods": ["sodium", "embeddium"], "reason": "二者功能重叠，不可同时安装，建议仅保留 Sodium（Fabric）或 Embeddium（Forge）" },

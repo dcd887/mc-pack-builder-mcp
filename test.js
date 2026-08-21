@@ -132,6 +132,26 @@ async function runTest(id, method, params, description) {
       "生成依赖清单"
     );
 
+    // Test 6: export_standard_pack (modlist generation)
+    const packDir5 = path.join(os.tmpdir(), `test-pack-${Date.now()}-5`);
+    await runTest(
+      9,
+      "tools/call",
+      { name: "create_pack", arguments: { pack_dir: packDir5, name: "Export Test", mc_version: "1.20.1", loader: "fabric" } },
+      "创建整合包(用于导出规范包)"
+    );
+    const modsDir5 = path.join(packDir5, "mods");
+    if (fs.existsSync(modsDir5)) {
+      fs.writeFileSync(path.join(modsDir5, "sodium-0.5.8.jar"), "");
+      fs.writeFileSync(path.join(modsDir5, "iris-1.6.20.jar"), "");
+    }
+    await runTest(
+      10,
+      "tools/call",
+      { name: "export_standard_pack", arguments: { source_pack_dir: packDir5, generate_modlist: true, modlist_format: "html" } },
+      "导出规范包(生成modlist)"
+    );
+
     // Cleanup temp dirs
     fs.readdirSync(os.tmpdir()).forEach((f) => {
       if (f.startsWith("test-pack-")) {
