@@ -1,0 +1,14 @@
+node_modules/
+dist/
+*.log
+.env
+test_out.txt
+test_logs/
+backups/
+.DS_Store
+Thumbs.db
+*.tmp
+*.bak
+__pycache__/
+.vscode/
+.idea/

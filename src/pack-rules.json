@@ -1,0 +1,23 @@
+{
+  "version": "1.0.0",
+  "rules": {
+    "incompatible_pairs": [
+      { "mods": ["sodium", "embeddium"], "reason": "二者功能重叠，不可同时安装，建议仅保留 Sodium（Fabric）或 Embeddium（Forge）" },
+      { "mods": ["optifine", "sodium"], "reason": "OptiFine 与 Fabric 加载器不兼容，建议使用 Iris + Sodium 替代" },
+      { "mods": ["optifine", "embeddium"], "reason": "OptiFine 与 Forge/Fabric 均不兼容，请移除 OptiFine" }
+    ],
+    "recommended_fabric": [
+      "sodium", "iris", "fabric-api", "lamp", "modelfix", "spark"
+    ],
+    "recommended_forge": [
+      "embeddium", "oxtrude", "spark", "rubidium"
+    ],
+    "pack_format": {
+      "1.20.1": 15,
+      "1.20.4": 17,
+      "1.21": 20,
+      "1.21.1": 22,
+      "1.21.4": 28
+    }
+  }
+}

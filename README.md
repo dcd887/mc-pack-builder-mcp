@@ -1,0 +1,157 @@
+# mc-pack-builder-mcp
+
+MCP server for Minecraft modpack building. Creates pack structures, searches mods on Modrinth, resolves dependencies, and checks compatibility.
+
+## Tools
+
+| Tool | Description |
+|------|-------------|
+| `create_pack` | Create a new modpack directory structure (pack.mcmeta, version.txt, loader.txt, mods/) |
+| `get_pack_info` | Read existing modpack metadata: MC version, loader, mod count, and common issues |
+| `search_mods` | Search Modrinth for mods by keyword, returns ID, name, description, download count |
+| `get_mod_info` | Get detailed info about a Modrinth mod: version history, dependencies, supported MC versions |
+| `resolve_dependencies` | Recursively resolve a mod's full dependency chain (direct + indirect) |
+| `check_pack_compatibility` | Check installed mods against a target MC version for known incompatibilities |
+| `generate_dependency_list` | Generate a complete dependency list for all mods in an existing pack |
+
+## Features
+
+- **Pack structure creation** — generates standard modpack directory with all required files
+- **Modrinth integration** — search and query mod metadata directly from the Modrinth API
+- **Dependency resolution** — follows the full dependency tree to ensure all requirements are met
+- **Compatibility checking** — detects known conflicts (e.g. OptiFine with Fabric, Sodium vs Embeddium)
+- **Offline operation** — all local pack tools work without network; only search/info tools need Modrinth
+
+## Installation
+
+### Prerequisites
+
+- Node.js 18+
+- npm
+
+### Build
+
+```bash
+cd mc-pack-builder-mcp
+npm install
+npm run build
+```
+
+### Run as standalone MCP server
+
+```bash
+node dist/index.js
+```
+
+The server communicates via stdio (JSON-RPC 2.0). It can be consumed by any MCP-compatible client.
+
+### Configuration for MCP clients
+
+Add to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "mc-pack-builder": {
+      "command": "node",
+      "args": ["<path/to/mc-pack-builder-mcp>/dist/index.js"]
+    }
+  }
+}
+```
+
+## Usage Examples
+
+### Create a new modpack
+
+```json
+{
+  "name": "create_pack",
+  "arguments": {
+    "pack_dir": "/path/to/MyModpack",
+    "name": "My Modpack",
+    "mc_version": "1.20.1",
+    "loader": "fabric"
+  }
+}
+```
+
+### Search for a mod on Modrinth
+
+```json
+{
+  "name": "search_mods",
+  "arguments": {
+    "query": "sodium",
+    "limit": 5
+  }
+}
+```
+
+### Resolve dependencies
+
+```json
+{
+  "name": "resolve_dependencies",
+  "arguments": {
+    "project_id": "geckolib"
+  }
+}
+```
+
+### Check pack compatibility
+
+```json
+{
+  "name": "check_pack_compatibility",
+  "arguments": {
+    "pack_dir": "/path/to/MyModpack",
+    "mc_version": "1.20.1"
+  }
+}
+```
+
+## Architecture
+
+```
+mc-pack-builder-mcp/
+├── src/
+│   └── index.ts        # MCP server + all tool implementations
+├── dist/               # Compiled JavaScript (output of tsc)
+├── __tests__/
+│   └── unit.test.ts    # Unit tests (offline)
+├── package.json        # Node.js dependencies (@modelcontextprotocol/sdk, zod)
+├── tsconfig.json       # TypeScript config (CommonJS output)
+├── test.js             # Integration test runner
+├── test_logs/          # Test output logs (gitignored)
+└── .gitignore
+```
+
+The MCP uses the official `@modelcontextprotocol/sdk` v1.x with `McpServer` and `StdioServerTransport`.
+
+## Testing
+
+```bash
+npm run build
+node test.js
+```
+
+Tests create temporary directories under `os.tmpdir()` and clean up after themselves. No Minecraft installation is required.
+
+## Platform Compatibility
+
+| Tool | Windows | macOS | Linux |
+|------|---------|-------|-------|
+| `create_pack` | ✅ | ✅ | ✅ |
+| `get_pack_info` | ✅ | ✅ | ✅ |
+| `search_mods` | ✅ | ✅ | ✅ |
+| `get_mod_info` | ✅ | ✅ | ✅ |
+| `resolve_dependencies` | ✅ | ✅ | ✅ |
+| `check_pack_compatibility` | ✅ | ✅ | ✅ |
+| `generate_dependency_list` | ✅ | ✅ | ✅ |
+
+All tools use cross-platform Node.js `fs` and `path` APIs. Network-dependent tools (`search_mods`, `get_mod_info`, `resolve_dependencies`) require internet access regardless of platform.
+
+## License
+
+MIT
