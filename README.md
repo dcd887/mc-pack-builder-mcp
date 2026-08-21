@@ -80,6 +80,17 @@ Add to your MCP client config:
 }
 ```
 
+### Read pack info
+
+```json
+{
+  "name": "get_pack_info",
+  "arguments": {
+    "pack_dir": "/path/to/MyModpack"
+  }
+}
+```
+
 ### Search for a mod on Modrinth
 
 ```json
@@ -114,6 +125,38 @@ Add to your MCP client config:
   }
 }
 ```
+
+### Generate dependency list
+
+```json
+{
+  "name": "generate_dependency_list",
+  "arguments": {
+    "pack_dir": "/path/to/MyModpack"
+  }
+}
+```
+
+### Export standard pack (release-ready)
+
+```json
+{
+  "name": "export_standard_pack",
+  "arguments": {
+    "source_pack_dir": "C:/Users/xxx/Desktop/MyModpack",
+    "output_dir": null,
+    "clean_minecraft_extra": true,
+    "minecraft_dir": "C:/Users/xxx/.minecraft",
+    "unwrap_nested": true,
+    "generate_modlist": true,
+    "modlist_format": "html",
+    "split_volumes": false,
+    "volume_max_mb": 256
+  }
+}
+```
+
+**Output:** Creates a `_ready` sibling directory (or custom `output_dir`) with the cleaned package. Returns a JSON report listing all actions taken, warnings, mod count, and — if volume splitting is enabled — per-volume paths and sizes.
 
 ## Architecture
 
