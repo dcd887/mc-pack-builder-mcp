@@ -64,6 +64,24 @@ Add to your MCP client config:
 
 > **Path note:** Replace `${MC_PACK_BUILDER_ROOT}` with the absolute path to this project's root directory. On Windows, use forward slashes: `["C:/Users/xxx/Desktop/mc-pack-builder-mcp/dist/index.js"]`. Alternatively, set an environment variable `MC_PACK_BUILDER_ROOT` pointing to the project root and use the variable in the config.
 
+## Configuration
+
+本工具零配置即可用（内置默认值，任何环境开箱即用）。以下项目可通过环境变量或项目根目录 `.env` 文件覆盖（复制 `.env.example` 为 `.env`）：
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `PACK_BUILDER_MODRINTH_API_BASE` | `https://api.modrinth.com/v2` | Modrinth API 根地址，支持自建网关/代理 |
+| `PACK_BUILDER_USER_AGENT` | `mc-pack-builder-mcp/1.1` | 请求 User-Agent（Modrinth 要求标明来源） |
+| `PACK_BUILDER_VOLUME_MAX_MB` | `256` | 分卷导出时每卷的最大体积（MB） |
+| `PACK_BUILDER_SKIP_DIRS` | `mods,config,resourcepacks,shaderpacks,saves,datapacks,worlds` | 解压嵌套压缩包时跳过的顶层目录（逗号分隔） |
+
+优先级：环境变量 > `.env` 文件 > 内置默认值。改动后重启 MCP server 生效。
+
+**扩展兼容性规则**：编辑 `src/pack-rules.json`（构建后为 `dist/pack-rules.json`），新增/覆盖规则即可，无需改代码。
+- `rules.incompatible_pairs`：互斥模组对，如 `{ "mods": ["sodium", "embeddium"], "reason": "..." }`，当同一整合包同时出现 ≥2 个名单内模组时告警。
+- `rules.loader_incompatible`：加载器专属不兼容，如 `{ "loader": "fabric", "mods": ["optifine"], "reason": "..." }`。
+- `rules.pack_format`：MC 版本 → `pack.mcmeta` 的 `pack_format` 数字映射（`create_pack` 默认取值）。
+
 ## Usage Examples
 
 ### Create a new modpack
@@ -163,7 +181,8 @@ Add to your MCP client config:
 ```
 mc-pack-builder-mcp/
 ├── src/
-│   └── index.ts        # MCP server + all tool implementations
+│   ├── index.ts        # MCP server + all tool implementations
+│   └── pack-rules.json # 兼容性规则 & pack_format 映射（可外部扩展）
 ├── dist/               # Compiled JavaScript (output of tsc)
 ├── __tests__/
 │   └── unit.test.ts    # Unit tests (offline)
@@ -171,6 +190,7 @@ mc-pack-builder-mcp/
 ├── tsconfig.json       # TypeScript config (CommonJS output)
 ├── test.js             # Integration test runner
 ├── test_logs/          # Test output logs (gitignored)
+├── .env.example        # 环境变量配置示例
 └── .gitignore
 ```
 

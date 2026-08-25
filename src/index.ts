@@ -7,12 +7,71 @@ const http = require("node:http");
 const https = require("node:https");
 const AdmZip = require("adm-zip");
 
+// ── Lightweight .env loader (no external dependency) ───────────────────
+
+function loadEnvFile() {
+  const envPath = path.join(__dirname, "..", ".env");
+  if (fs.existsSync(envPath)) {
+    try {
+      for (const line of fs.readFileSync(envPath, "utf8").split(/\r?\n/)) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eq = trimmed.indexOf("=");
+        if (eq <= 0) continue;
+        const key = trimmed.slice(0, eq).trim();
+        let value = trimmed.slice(eq + 1).trim();
+        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+          value = value.slice(1, -1);
+        }
+        if (!(key in process.env)) process.env[key] = value;
+      }
+    } catch { /* ignore malformed .env */ }
+  }
+}
+loadEnvFile();
+
+// 可配置项：环境变量 > .env 文件 > 内置默认值
+const CONFIG = {
+  modrinthBase: process.env.PACK_BUILDER_MODRINTH_API_BASE || "https://api.modrinth.com/v2",
+  userAgent: process.env.PACK_BUILDER_USER_AGENT || "mc-pack-builder-mcp/1.1",
+  volumeMaxMb: parseFloat(process.env.PACK_BUILDER_VOLUME_MAX_MB || "256") || 256,
+  skipDirs: (process.env.PACK_BUILDER_SKIP_DIRS || "mods,config,resourcepacks,shaderpacks,saves,datapacks,worlds")
+    .split(",").map((s) => s.trim()).filter(Boolean),
+};
+
+// ── pack-rules.json（兼容性规则 / pack_format 映射）────────────────────
+
+function loadPackRules() {
+  const builtin = {
+    rules: {
+      incompatible_pairs: [],
+      loader_incompatible: [],
+      recommended_fabric: [],
+      recommended_forge: [],
+      pack_format: {},
+    },
+  };
+  try {
+    const p = path.join(__dirname, "pack-rules.json");
+    if (!fs.existsSync(p)) return builtin;
+    const parsed = JSON.parse(fs.readFileSync(p, "utf8"));
+    return {
+      ...builtin,
+      ...parsed,
+      rules: { ...builtin.rules, ...(parsed.rules ?? {}) },
+    };
+  } catch {
+    return builtin;
+  }
+}
+const PACK_RULES = loadPackRules();
+
 // ── Modrinth API helpers ───────────────────────────────────────────────
 
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     const client = url.startsWith("https") ? https : http;
-    client.get(url, { headers: { "User-Agent": "mc-pack-builder-mcp/1.1" } }, (res) => {
+    client.get(url, { headers: { "User-Agent": CONFIG.userAgent } }, (res) => {
       let data = "";
       res.on("data", (chunk) => { data += chunk; });
       res.on("end", () => {
@@ -28,9 +87,10 @@ function fetchJSON(url) {
 export function createPack(packDir, options) {
   const resolvedDir = path.resolve(packDir);
   const packJsonPath = path.join(resolvedDir, "pack.mcmeta");
+  const rulePackFormat = PACK_RULES.rules.pack_format?.[options.mcVersion];
   const packJson = {
     pack: {
-      pack_format: options.packFormat ?? (options.mcVersion === "1.20.1" ? 15 : 10),
+      pack_format: options.packFormat ?? rulePackFormat ?? (options.mcVersion === "1.20.1" ? 15 : 10),
       description: options.entry ?? `${options.name ?? "My Modpack"} - A Minecraft modpack`,
     },
   };
@@ -78,7 +138,7 @@ export function getPackInfo(packDir) {
 
 export async function searchMods(query, limit = 10) {
   const results = await fetchJSON(
-    `https://api.modrinth.com/v2/search?query=${encodeURIComponent(query)}&limit=${limit}&index=relevance`
+    `${CONFIG.modrinthBase}/search?query=${encodeURIComponent(query)}&limit=${limit}&index=relevance`
   );
   const hits = (results.hits ?? []);
   return hits.map((hit) => ({
@@ -95,7 +155,7 @@ export async function searchMods(query, limit = 10) {
 
 export async function getModInfo(projectId) {
   try {
-    const data = await fetchJSON(`https://api.modrinth.com/v2/project/${projectId}`);
+    const data = await fetchJSON(`${CONFIG.modrinthBase}/project/${projectId}`);
     const versionFiles = data.versions ?? [];
     const versions = versionFiles.map((v) => ({
       number: v.version_number,
@@ -192,7 +252,7 @@ function totalDirSize(dir) {
 }
 
 function findNestedZips(packRoot) {
-  const skipDirs = ["mods", "config", "resourcepacks", "shaderpacks", "saves", "datapacks", "worlds"];
+  const skipDirs = CONFIG.skipDirs;
   const nested = [];
   function walk(dir) {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -295,9 +355,9 @@ function estimateVolumeCount(totalBytes, maxPerVolMB) {
   return Math.max(1, Math.ceil(totalBytes / maxBytes));
 }
 
-function splitVolumes(sourceDir, outputDir, packName) {
+function splitVolumes(sourceDir, outputDir, packName, maxPerVolMB) {
   const allFiles = getAllFiles(sourceDir);
-  const MAX_PER_VOL = 256 * 1024 * 1024; // 256 MB per volume
+  const MAX_PER_VOL = (maxPerVolMB || CONFIG.volumeMaxMb) * 1024 * 1024; // 每卷大小上限，默认取 CONFIG
   const volDirs = [];
   let currentVol = 0;
   let currentSize = 0;
@@ -345,7 +405,7 @@ export async function exportStandardPack(
     generate_modlist = false,
     modlist_format = "html",
     split_volumes = false,
-    volume_max_mb = 256,
+    volume_max_mb = CONFIG.volumeMaxMb,
   } = options;
 
   const src = path.resolve(sourcePackDir);
@@ -461,7 +521,7 @@ export async function exportStandardPack(
     const volCount = estimateVolumeCount(totalBytes, volume_max_mb);
     const parentDir = path.dirname(finalOutputDir);
     if (volCount > 1) {
-      const zipResults = splitVolumes(finalOutputDir, parentDir, packName);
+      const zipResults = splitVolumes(finalOutputDir, parentDir, packName, volume_max_mb);
       fs.rmSync(finalOutputDir, { recursive: true, force: true });
       report.actions.push(`Split into ${zipResults.length} volumes (max ${volume_max_mb}MB each)`);
       report.volumes = zipResults.map((v) => ({
@@ -489,6 +549,51 @@ export async function exportStandardPack(
 
 // ── MCP Server ──────────────────────────────────────────────────────────
 
+// 兼容性检查核心逻辑：规则全部来自 pack-rules.json（可外部扩展）
+function runCompatibilityCheck(packDir, targetVersion) {
+  const info = getPackInfo(packDir);
+  if (!info.exists) return { error: `整合包不存在: ${packDir}` };
+  const modsDir = path.join(packDir, "mods");
+  const jars = fs.existsSync(modsDir)
+    ? fs.readdirSync(modsDir).filter((f) => f.endsWith(".jar") && !f.includes("-sources"))
+    : [];
+  const incompatible = [];
+  const lowerJars = jars.map((f) => f.toLowerCase());
+
+  // 规则 1：模组互斥对（如 sodium+embeddium、optifine+sodium）
+  const pairs = PACK_RULES.rules.incompatible_pairs ?? [];
+  for (const rule of pairs) {
+    const modList = (rule.mods ?? []).map((m) => String(m).toLowerCase()).filter(Boolean);
+    const present = modList.filter((m) => lowerJars.some((j) => j.includes(m)));
+    if (present.length >= 2) {
+      incompatible.push({ file: present.join("+"), issue: rule.reason || `互相冲突: ${present.join(", ")}` });
+    }
+  }
+
+  // 规则 2：加载器专属不兼容（如 OptiFine 在 Fabric 上）
+  const loaderRules = PACK_RULES.rules.loader_incompatible ?? [];
+  for (const rule of loaderRules) {
+    if (rule.loader && info.loader !== rule.loader) continue;
+    const modList = (rule.mods ?? []).map((m) => String(m).toLowerCase()).filter(Boolean);
+    for (const m of modList) {
+      if (lowerJars.some((j) => j.includes(m))) {
+        incompatible.push({ file: m, issue: rule.reason || `${m} 与 ${info.loader} 加载器不兼容` });
+      }
+    }
+  }
+
+  return {
+    pack_dir: packDir,
+    mc_version: targetVersion,
+    loader: info.loader,
+    total_mods: jars.length,
+    incompatible,
+    recommendations: incompatible.length === 0
+      ? ["All checked mods appear compatible"]
+      : ["Review incompatible mods and replace with compatible alternatives"],
+  };
+}
+
 export async function checkPackCompatibility(
   packDir, options = {} as any
 ) {
@@ -497,27 +602,9 @@ export async function checkPackCompatibility(
     if (!info.exists) return { content: [{ type: "text", text: `整合包不存在: ${packDir}` }], isError: true };
     const targetVersion = options.mc_version ?? info.mcVersion;
     if (!targetVersion) return { content: [{ type: "text", text: "无法确定 MC 版本" }], isError: true };
-    const modsDir = path.join(packDir, "mods");
-    const jars = fs.existsSync(modsDir)
-      ? fs.readdirSync(modsDir).filter((f) => f.endsWith(".jar") && !f.includes("-sources"))
-      : [];
-    const incompatible = [];
-    const lowerJars = jars.map((f) => f.toLowerCase());
-    if (lowerJars.some((f) => f.includes("optifine")) && info.loader === "fabric") {
-      incompatible.push({ file: "OptiFine", issue: "OptiFine not compatible with Fabric; use Iris or Sodium instead" });
-    }
-    if (lowerJars.some((f) => f.includes("embeddium")) && lowerJars.some((f) => f.includes("sodium"))) {
-      incompatible.push({ file: "embeddium+sodium", issue: "Embeddium and Sodium are mutually exclusive" });
-    }
-    return {
-      content: [{ type: "text", text: JSON.stringify({
-        pack_dir: packDir, mc_version: targetVersion, loader: info.loader,
-        total_mods: jars.length, incompatible,
-        recommendations: incompatible.length === 0
-          ? ["All checked mods appear compatible"]
-          : ["Review incompatible mods and replace with compatible alternatives"],
-      }, null, 2) }]
-    };
+    const data = runCompatibilityCheck(packDir, targetVersion);
+    if (data.error) return { content: [{ type: "text", text: data.error }], isError: true };
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
   } catch (e) {
     return { content: [{ type: "text", text: `检查兼容性失败: ${e.message}` }], isError: true };
   }
@@ -665,27 +752,8 @@ async function main() {
         if (!info.exists) return { content: [{ type: "text", text: `整合包不存在: ${pack_dir}` }], isError: true };
         const targetVersion = mc_version ?? info.mcVersion;
         if (!targetVersion) return { content: [{ type: "text", text: "无法确定 MC 版本" }], isError: true };
-        const modsDir = path.join(pack_dir, "mods");
-        const jars = fs.existsSync(modsDir)
-          ? fs.readdirSync(modsDir).filter((f) => f.endsWith(".jar") && !f.includes("-sources"))
-          : [];
-        const incompatible = [];
-        const lowerJars = jars.map((f) => f.toLowerCase());
-        if (lowerJars.some((f) => f.includes("optifine")) && info.loader === "fabric") {
-          incompatible.push({ file: "OptiFine", issue: "OptiFine not compatible with Fabric; use Iris or Sodium instead" });
-        }
-        if (lowerJars.some((f) => f.includes("embeddium")) && lowerJars.some((f) => f.includes("sodium"))) {
-          incompatible.push({ file: "embeddium+sodium", issue: "Embeddium and Sodium are mutually exclusive" });
-        }
-        return {
-          content: [{ type: "text", text: JSON.stringify({
-            pack_dir, mc_version: targetVersion, loader: info.loader,
-            total_mods: jars.length, incompatible,
-            recommendations: incompatible.length === 0
-              ? ["All checked mods appear compatible"]
-              : ["Review incompatible mods and replace with compatible alternatives"],
-          }, null, 2) }]
-        };
+        const data = runCompatibilityCheck(pack_dir, targetVersion);
+        return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
       } catch (e) {
         return { content: [{ type: "text", text: `检查兼容性失败: ${e.message}` }], isError: true };
       }

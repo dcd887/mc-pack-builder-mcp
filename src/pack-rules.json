@@ -6,6 +6,10 @@
       { "mods": ["optifine", "sodium"], "reason": "OptiFine 与 Fabric 加载器不兼容，建议使用 Iris + Sodium 替代" },
       { "mods": ["optifine", "embeddium"], "reason": "OptiFine 与 Forge/Fabric 均不兼容，请移除 OptiFine" }
     ],
+    "loader_incompatible": [
+      { "loader": "fabric", "mods": ["optifine"], "reason": "OptiFine 与 Fabric 加载器不兼容，建议使用 Iris + Sodium 替代" },
+      { "loader": "quilt", "mods": ["optifine"], "reason": "OptiFine 与 Quilt 加载器不兼容，建议使用 Iris + Sodium 替代" }
+    ],
     "recommended_fabric": [
       "sodium", "iris", "fabric-api", "lamp", "modelfix", "spark"
     ],
