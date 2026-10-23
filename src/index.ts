@@ -841,7 +841,12 @@ async function main() {
   await server.connect(transport);
 }
 
-main().catch((e) => {
-  console.error("Fatal error in mc-pack-builder-mcp:", e);
-  process.exit(1);
-});
+// 仅在被直接运行时启动 stdio 服务端。
+// 被测试 require("../dist/index") 导入时不要连接 transport —— 否则 stdin 被占住，
+// node:test 进程永不退出（CI 上表现为 Run unit tests 一直 in_progress 直到超时）。
+if (require.main === module) {
+  main().catch((e) => {
+    console.error("Fatal error in mc-pack-builder-mcp:", e);
+    process.exit(1);
+  });
+}
