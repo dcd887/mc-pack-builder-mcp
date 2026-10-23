@@ -1,5 +1,7 @@
 # mc-pack-builder-mcp
 
+[![M8ven Verified](https://m8ven.ai/badge/mcp/dcd887/mc-pack-builder-mcp?variant=verified)](https://m8ven.ai/mcp/dcd887/mc-pack-builder-mcp?s=readme)
+
 MCP server for Minecraft modpack building. Creates pack structures, searches mods on Modrinth, resolves dependencies, checks compatibility, and exports standardized modpacks ready for distribution.
 
 ## Tools
