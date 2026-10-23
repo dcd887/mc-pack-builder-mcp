@@ -1,0 +1,20 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.dcd887/mc-pack-builder",
+  "description": "构建 Minecraft 整合包：依赖解析、冲突检测、导出清单",
+  "version": "1.1.0",
+  "repository": {
+    "url": "https://github.com/dcd887/mc-pack-builder-mcp",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "mc-pack-builder-mcp",
+      "version": "1.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}
